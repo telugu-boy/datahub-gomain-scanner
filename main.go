@@ -1,15 +1,17 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 
 	"github.com/joho/godotenv"
 	"github.com/valyala/fasthttp"
 )
 
-func main() {
+func execute() {
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
@@ -31,8 +33,23 @@ func main() {
 		return
 	}
 
-	fmt.Printf("Response: %s\n", resp.Body())
+	var domain_resp OutdatedDomainResponse
+	if err := json.Unmarshal(resp.Body(), &domain_resp); err != nil {
+		fmt.Println("Invalid OutdatedDomainResponse JSON")
+	}
 
-	fasthttp.ReleaseRequest(req)
-	fasthttp.ReleaseResponse(resp)
+	// test scanner.go
+	url, err := url.Parse("vetexplainspets.com")
+	if url.Scheme == "" {
+		url.Scheme = "https"
+	}
+	report, err := ScanHTTP(url)
+	fmt.Println(report)
+
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
+}
+
+func main() {
+	test_scanner()
 }

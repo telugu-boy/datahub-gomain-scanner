@@ -7,7 +7,7 @@ const SCAN_REPORT_VERSION = 1
 
 type ScanReport struct {
 	Domain   string              `json:"domain"`
-	Version  uint                `json:"version"`
+	Version  int                 `json:"version"`
 	Tags     []string            `json:"tags"`
 	Services map[string]any      `json:"services"`
 	Records  map[string][]string `json:"records"`
@@ -19,7 +19,7 @@ type HttpReport struct {
 	Tags         []string          `json:"tags"`
 	Certificate  *CertificateDump  `json:"certificate"`
 	Path         string            `json:"path"` // actual path after redirection (like login page or something like that)
-	StatusCode   uint16            `json:"status_code"`
+	StatusCode   int               `json:"status_code"`
 	Headers      map[string]string `json:"headers"` // actually we are losing headers with multiple value but the server doesn't support it
 	Title        string            `json:"title"`
 	HtmlMeta     []HtmlMeta        `json:"html_meta"`
@@ -62,4 +62,11 @@ type CertificateDump struct {
 	PublicKey   string            `json:"public_key"`   // OpenSSH format
 	DNSNames    []string          `json:"dns_names"`    // (SUBJECT_ALTERNATIVE_NAME)
 	Raw         string            `json:"raw"`          // base64-encoded cert (without newlines and header/footer)
+}
+
+type OutdatedDomainResponse struct {
+	Success      bool     `json:"success"`
+	Message      string   `json:"message"`
+	ErrorMessage string   `json:"error_message"`
+	Domains      []string `json:"data"`
 }
