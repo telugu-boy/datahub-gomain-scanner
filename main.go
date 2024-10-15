@@ -23,6 +23,8 @@ func execute() {
 
 	req := fasthttp.AcquireRequest()
 	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
 
 	req.SetRequestURI("https://" + datahub_url + endpoint)
 	// add bearer authorization header
@@ -45,9 +47,6 @@ func execute() {
 	}
 	report, err := ScanHTTP(url)
 	fmt.Println(report)
-
-	defer fasthttp.ReleaseRequest(req)
-	defer fasthttp.ReleaseResponse(resp)
 }
 
 func main() {

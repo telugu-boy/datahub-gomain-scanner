@@ -4,12 +4,9 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 	"sync"
-
-	"github.com/valyala/fasthttp"
 )
 
 func test_scanner() {
@@ -22,29 +19,22 @@ func test_scanner() {
 		links = append(links, strings.TrimSpace(scanner.Text()))
 	}
 
-	httpreports := make([]HttpReport, len(links))
+	scanreports := make([]ScanReport, len(links))
 	var wg sync.WaitGroup
 	for i, domain := range links {
-		target, err := url.Parse(domain)
-		if err != nil {
-			fmt.Println("Error parsing URL", target)
-			continue
-		}
-		if target.Scheme == "" {
-			target.Scheme = "https"
-		}
 		wg.Add(1)
-		go func(wg *sync.WaitGroup, i int, target *url.URL) {
+		go func(wg *sync.WaitGroup, i int, domain string) {
 			defer wg.Done()
-			httpreports[i], err = ScanHTTP(target)
-			if err == fasthttp.ErrTimeout {
-				fmt.Println("Timeout scanning", i, target)
+			var err error
+			scanreports[i], err = ScanDomain(domain)
+			if err != nil {
+				fmt.Println("scan error:", i, err.Error())
 			}
-			fmt.Println("Done scanning", i, target)
-		}(&wg, i, target)
+			fmt.Println("Done scanning", i, domain)
+		}(&wg, i, domain)
 	}
 	wg.Wait()
 	fmt.Println("Done all")
-	jsonreports, _ := json.Marshal(httpreports)
-	os.WriteFile("httpreports.json", jsonreports, os.ModePerm)
+	jsonreports, _ := json.Marshal(scanreports)
+	os.WriteFile("domainreports.json", jsonreports, os.ModePerm)
 }

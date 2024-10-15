@@ -2,22 +2,27 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/miekg/dns"
 )
 
 func EnumerateDnsRecords(domain string) map[string][]string {
-	ret := make(map[string][]string)
+	ret := map[string][]string{
+		"A": {}, "AAAA": {},
+		"MX": {}}
 	c := new(dns.Client)
 
 	// https://en.wikipedia.org/wiki/List_of_DNS_record_types
 	// A, AAAA, MX
 	for _, qtyp := range []uint16{1, 28, 15} {
 		m := new(dns.Msg)
-		m.SetQuestion(dns.Fqdn(os.Args[1]), qtyp)
+		m.SetQuestion(dns.Fqdn(domain), qtyp)
 
 		in, _, _ := c.Exchange(m, DNSServer)
+
+		if in == nil || len(in.Answer) == 0 {
+			continue
+		}
 
 		for _, answer := range in.Answer {
 			typ_name := dns.TypeToString[answer.Header().Rrtype]

@@ -24,4 +24,5 @@ go.work
 .env
 
 # testing artifacts
-httpreports.json
+domainreports.json
+datahub-gomain-scanner
