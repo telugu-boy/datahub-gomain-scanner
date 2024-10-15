@@ -5,17 +5,14 @@ import (
 	"net/http"
 )
 
-func NewHttpRequest(uri string) (*http.Request, error) {
+func NewHttpRequest(uri string) *http.Request {
 	req, err := http.NewRequest("GET", uri, nil)
-	if err != nil {
-		return nil, err
-	}
-
+	AssertError(err)
 	for k, v := range RequestHeaders {
 		req.Header.Add(k, v)
 	}
 
-	return req, nil
+	return req
 }
 
 func ReadHttpResponseContent(resp *http.Response) []byte {

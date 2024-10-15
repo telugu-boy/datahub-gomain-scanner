@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -47,19 +46,15 @@ func ParseHomepage(resp *http.Response) (string, []HtmlMeta) {
 	return title, htmlmetas
 }
 
-func ScanRobots(target url.URL) ([]RobotDirective, error) {
+func ScanRobots(target url.URL) []RobotDirective {
 	res := []RobotDirective{}
 
 	target.Path = "/robots.txt"
-	req, err := NewHttpRequest(target.String())
-	if err != nil {
-		fmt.Println("error while creating robots_txt req:", err.Error())
-		return []RobotDirective{}, nil
-	}
+	req := NewHttpRequest(target.String())
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return []RobotDirective{}, nil
+		return []RobotDirective{}
 	}
 	defer resp.Body.Close()
 
@@ -97,7 +92,7 @@ func ScanRobots(target url.URL) ([]RobotDirective, error) {
 		}
 	}
 
-	return res, nil
+	return res
 }
 
 func CheckHttpDumbRedirection(report *HttpReport, target url.URL) bool {
@@ -114,11 +109,7 @@ func CheckHttpDumbRedirection(report *HttpReport, target url.URL) bool {
 	**/
 
 	target.Path = "/are_you_dumb_redirect"
-	req, err := NewHttpRequest(target.String())
-	if err != nil {
-		fmt.Println("error while creating dumb-redirect request:", err.Error())
-		return false
-	}
+	req := NewHttpRequest(target.String())
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -178,11 +169,7 @@ func ScanHTTP(target *url.URL) (HttpReport, error) {
 	report := HttpReport{}
 	report.Headers = make(map[string]string)
 
-	req, err := NewHttpRequest(target.String())
-
-	if err != nil {
-		return report, err
-	}
+	req := NewHttpRequest(target.String())
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -210,11 +197,8 @@ func ScanHTTP(target *url.URL) (HttpReport, error) {
 	report.Headers = GetHttpResponseHeaders(resp)
 
 	report.Title, report.HtmlMeta = ParseHomepage(resp)
-	//robot_directives, err := ScanRobots(*target)
-	//if err != nil {
-	//	return report, err
-	//}
-	//report.RobotTxt = robot_directives
+	robot_directives := ScanRobots(*target)
+	report.RobotTxt = robot_directives
 
 	//fmt.Print(report.Title)
 
