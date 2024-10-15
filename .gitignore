@@ -22,3 +22,5 @@ go.work
 
 # environment variables
 .env
+
+datahub-gomain-scanner
