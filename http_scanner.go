@@ -2,32 +2,22 @@ package main
 
 import (
 	"bufio"
+	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/anaskhan96/soup"
-
 	//"github.com/jimsmart/grobotstxt"
-	"github.com/valyala/fasthttp"
 )
 
-func AcquireAndSetupReq(uri string) *fasthttp.Request {
-	req := fasthttp.AcquireRequest()
-	req.SetRequestURI(uri)
-	for k, v := range RequestHeaders {
-		req.Header.Set(k, v)
-	}
-	return req
-}
-
-func ParseHomepage(resp *fasthttp.Response) (string, []HtmlMeta) {
-	doc := soup.HTMLParse(string(resp.Body()))
+func ParseHomepage(resp *http.Response) (string, []HtmlMeta) {
+	doc := soup.HTMLParse(string(ReadHttpResponseContent(resp)))
 	title := ""
 	title_root := doc.Find("title")
 	if title_root.Error == nil {
 		title = title_root.Text()
 	}
-	//print(title)
 	metas := doc.FindAll("meta")
 	htmlmetas := []HtmlMeta{}
 	for _, meta := range metas {
@@ -58,37 +48,32 @@ func ParseHomepage(resp *fasthttp.Response) (string, []HtmlMeta) {
 }
 
 func ScanRobots(target url.URL) ([]RobotDirective, error) {
-	req := fasthttp.AcquireRequest()
-	resp := fasthttp.AcquireResponse()
 	res := []RobotDirective{}
 
-	defer fasthttp.ReleaseRequest(req)
-	defer fasthttp.ReleaseResponse(resp)
-
 	target.Path = "/robots.txt"
-	req.SetRequestURI(target.String())
-	for k, v := range RequestHeaders {
-		req.Header.Set(k, v)
+	req, err := NewHttpRequest(target.String())
+	if err != nil {
+		fmt.Println("error while creating robots_txt req:", err.Error())
+		return []RobotDirective{}, nil
 	}
 
-	if err := fasthttp.DoTimeout(req, resp, ReqTimeout); err != nil {
-		return res, err
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return []RobotDirective{}, nil
 	}
+	defer resp.Body.Close()
 
 	// loop thru each line and log directives in res
 	// no library
 	curr_uagent := "*"
 	cnt := 0
-	resp_reader := resp.BodyStream()
-	scanner := bufio.NewScanner(resp_reader)
+	scanner := bufio.NewScanner(resp.Body)
 	scanner.Split(bufio.ScanLines)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 
+		line = strings.Split(line, "#")[0]
 		if line == "" {
-			continue
-		}
-		if strings.HasPrefix(line, "#") {
 			continue
 		}
 		parts := strings.Split(line, ":")
@@ -129,35 +114,27 @@ func CheckHttpDumbRedirection(report *HttpReport, target url.URL) bool {
 	**/
 
 	target.Path = "/are_you_dumb_redirect"
-
-	req := AcquireAndSetupReq(target.String())
-	resp := fasthttp.AcquireResponse()
-
-	defer fasthttp.ReleaseRequest(req)
-	defer fasthttp.ReleaseResponse(resp)
-
-	if err := fasthttp.DoTimeout(req, resp, ReqTimeout); err != nil {
+	req, err := NewHttpRequest(target.String())
+	if err != nil {
+		fmt.Println("error while creating dumb-redirect request:", err.Error())
 		return false
 	}
 
-	var StatusCode = resp.StatusCode()
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
 
-	if StatusCode < 300 || StatusCode > 399 {
+	if resp.StatusCode < 300 || resp.StatusCode > 399 {
 		return false
 	}
 
-	var loc = ""
-	resp.Header.VisitAll(func(key []byte, val []byte) {
-		if strings.ToLower(string(key)) == "location" {
-			loc = string(val)
-		}
-	})
-
-	if loc == "" {
+	if resp.Header.Get("Location") == "" {
 		return false
 	}
 
-	parsed_loc, _ := url.Parse(loc) // TODO: parse it better (idk if it would parse correctly "login/page.php", it would think "login" is the host)
+	parsed_loc, _ := url.Parse(resp.Header.Get("Location")) // TODO: parse it better (idk if it would parse correctly "login/page.php", it would think "login" is the host)
 
 	if (parsed_loc.Scheme == "" || parsed_loc.Scheme == target.Scheme) && (parsed_loc.Host == "" || parsed_loc.Host == target.Host) {
 		return false
@@ -168,17 +145,18 @@ func CheckHttpDumbRedirection(report *HttpReport, target url.URL) bool {
 }
 
 // return: continue_scan / follow redirect
-func CheckHttpRedirection(resp *fasthttp.Response, target *url.URL, report *HttpReport) (bool, bool) {
-	loc, e := report.Headers["Location"]
+func CheckHttpRedirection(resp *http.Response, target *url.URL, report *HttpReport) (bool, bool) {
+	_loc, e := resp.Header["Location"]
 
 	continue_scan := true
 	follow_redirect := false
 
-	if !e {
+	if !e || len(_loc) == 0 {
 		report.Tags = append(report.Tags, "invalid-redirect")
 		return continue_scan, follow_redirect
 	}
 
+	loc := _loc[0]
 	new_loc, _ := url.Parse(loc) // TODO: parse it better (idk if it would parse correctly "login/page.php", it would think "login" is the host)
 
 	if new_loc.Host == "" || new_loc.Host == target.Host {
@@ -193,34 +171,24 @@ func CheckHttpRedirection(resp *fasthttp.Response, target *url.URL, report *Http
 		report.Tags = append(report.Tags, "external-redirect")
 	}
 
-	return continue_scan, follow_redirect
+	return CheckHttpDumbRedirection(report, *target), follow_redirect
 }
 
 func ScanHTTP(target *url.URL) (HttpReport, error) {
 	report := HttpReport{}
 	report.Headers = make(map[string]string)
 
-	req := fasthttp.AcquireRequest()
-	resp := fasthttp.AcquireResponse()
+	req, err := NewHttpRequest(target.String())
 
-	defer fasthttp.ReleaseRequest(req)
-	defer fasthttp.ReleaseResponse(resp)
-
-	req.SetRequestURI(target.String())
-	for k, v := range RequestHeaders {
-		req.Header.Set(k, v)
-	}
-
-	// TODO: enable to connect to servers with invalid certificates
-	if err := fasthttp.DoTimeout(req, resp, ReqTimeout); err != nil {
+	if err != nil {
 		return report, err
 	}
 
-	report.Path = target.Path
-	report.StatusCode = resp.StatusCode()
-	resp.Header.VisitAll(func(key, value []byte) {
-		report.Headers[string(key)] = string(value)
-	})
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return report, err
+	}
+	defer resp.Body.Close()
 
 	if report.StatusCode >= 300 && report.StatusCode <= 399 {
 		continue_scan, follow_redirect := CheckHttpRedirection(resp, target, &report)
@@ -228,12 +196,18 @@ func ScanHTTP(target *url.URL) (HttpReport, error) {
 		_ = follow_redirect
 
 		if !continue_scan {
+			report.StatusCode = resp.StatusCode
+			report.Headers = GetHttpResponseHeaders(resp)
 			report.Title, report.HtmlMeta = ParseHomepage(resp)
 			return report, nil
 		} else if follow_redirect {
 			// TODO:
 		}
 	}
+
+	report.Path = target.Path
+	report.StatusCode = resp.StatusCode
+	report.Headers = GetHttpResponseHeaders(resp)
 
 	report.Title, report.HtmlMeta = ParseHomepage(resp)
 	//robot_directives, err := ScanRobots(*target)
