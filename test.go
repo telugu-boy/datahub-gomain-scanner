@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/valyala/fasthttp"
 )
 
 func test_scanner() {
@@ -35,6 +37,9 @@ func test_scanner() {
 		go func(wg *sync.WaitGroup, i int, target *url.URL) {
 			defer wg.Done()
 			httpreports[i], err = ScanHTTP(target)
+			if err == fasthttp.ErrTimeout {
+				fmt.Println("Timeout scanning", i, target)
+			}
 			fmt.Println("Done scanning", i, target)
 		}(&wg, i, target)
 	}

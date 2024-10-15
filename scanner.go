@@ -54,13 +54,12 @@ func ScanRobots(target *url.URL) ([]RobotDirective, error) {
 	resp := fasthttp.AcquireResponse()
 	res := []RobotDirective{}
 
-	req.SetTimeout(ReqTimeout)
 	req.SetRequestURI(target.Hostname() + "/robots.txt")
 	for k, v := range RequestHeaders {
 		req.Header.Set(k, v)
 	}
 
-	if err := fasthttp.Do(req, resp); err != nil {
+	if err := fasthttp.DoTimeout(req, resp, ReqTimeout); err != nil {
 		return res, err
 	}
 
@@ -115,13 +114,12 @@ func ScanHTTP(target *url.URL) (HttpReport, error) {
 	resp := fasthttp.AcquireResponse()
 
 	//fmt.Println("Scanning", target)
-	req.SetTimeout(ReqTimeout)
 	req.SetRequestURI(target.String())
 	for k, v := range RequestHeaders {
 		req.Header.Set(k, v)
 	}
 
-	if err := fasthttp.Do(req, resp); err != nil {
+	if err := fasthttp.DoTimeout(req, resp, ReqTimeout); err != nil {
 		return report, err
 	}
 
