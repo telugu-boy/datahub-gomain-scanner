@@ -28,8 +28,9 @@ func ScanDomain(domain string) (ScanReport, error) {
 			"nameservers": []string{DNSServer},
 			"started_at":  time.Now().UTC().Format(time.RFC3339),
 		},
-		Services: map[string]any{},
-		Records:  map[string][]string{},
+		Services:    map[string]any{},
+		HttpReports: map[string]HttpReport{},
+		Records:     map[string][]string{},
 	}
 
 	defer func() {
@@ -58,7 +59,7 @@ func ScanDomain(domain string) (ScanReport, error) {
 			if err != nil && !IsIgnorableError(err) {
 				fmt.Println("error while scanning", domain, target.String(), scheme, ":", err.Error())
 			} else if err == nil {
-				scanreport.Services[scheme] = report
+				scanreport.HttpReports[scheme] = report
 			}
 		}
 	}

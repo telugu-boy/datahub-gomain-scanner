@@ -6,13 +6,14 @@ const SCAN_REPORT_VERSION = 1
 //		because it depends a lot on the presences of keys (but in golang we will have to set them to nil)
 
 type ScanReport struct {
-	Domain   string              `json:"domain"`
-	Version  int                 `json:"version"`
-	Tags     []string            `json:"tags"`
-	Services map[string]any      `json:"services"`
-	Records  map[string][]string `json:"records"`
-	Whois    string              `json:"whois"`
-	Meta     map[string]any      `json:"meta"`
+	Domain      string                `json:"domain"`
+	Version     int                   `json:"version"`
+	Tags        []string              `json:"tags"`
+	Services    map[string]any        `json:"services"`
+	HttpReports map[string]HttpReport `json:"http_reports"`
+	Records     map[string][]string   `json:"records"`
+	Whois       string                `json:"whois"`
+	Meta        map[string]any        `json:"meta"`
 }
 
 type HttpReport struct {

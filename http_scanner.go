@@ -46,7 +46,7 @@ func ParseHomepage(resp *http.Response) (string, []HtmlMeta) {
 	return title, htmlmetas
 }
 
-func ScanRobots(target url.URL) []RobotDirective {
+func ScanRobots(target *url.URL) []RobotDirective {
 	res := []RobotDirective{}
 
 	target.Path = "/robots.txt"
@@ -197,7 +197,7 @@ func ScanHTTP(target *url.URL) (HttpReport, error) {
 	report.Headers = GetHttpResponseHeaders(resp)
 
 	report.Title, report.HtmlMeta = ParseHomepage(resp)
-	robot_directives := ScanRobots(*target)
+	robot_directives := ScanRobots(target)
 	report.RobotTxt = robot_directives
 
 	//fmt.Print(report.Title)

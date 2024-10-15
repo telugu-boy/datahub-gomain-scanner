@@ -16,7 +16,11 @@ func NewHttpRequest(uri string) *http.Request {
 }
 
 func ReadHttpResponseContent(resp *http.Response) []byte {
-	var buff [MaxRespLen]byte
+	bufsiz := min(resp.ContentLength, MaxRespLen)
+	if bufsiz == -1 {
+		bufsiz = MaxRespLen
+	}
+	buff := make([]byte, bufsiz)
 
 	n, _ := io.ReadFull(resp.Body, buff[:])
 

@@ -8,10 +8,13 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sync"
 
 	"github.com/joho/godotenv"
 	"github.com/valyala/fasthttp"
 )
+
+var wg sync.WaitGroup
 
 func execute() {
 	err := godotenv.Load()
@@ -55,5 +58,5 @@ func main() {
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	http.DefaultClient.Timeout = ReqTimeout
 
-	test_scanner()
+	//TestScanDomain()
 }
