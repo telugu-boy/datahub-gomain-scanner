@@ -24,7 +24,7 @@ type HttpReport struct {
 	Headers      map[string]string `json:"headers"` // actually we are losing headers with multiple value but the server doesn't support it
 	Title        string            `json:"title"`
 	HtmlMeta     []HtmlMeta        `json:"html_meta"`
-	RobotTxt     []RobotDirective  `json:"robot_txt"`
+	RobotsTxt    []RobotDirective  `json:"robots_txt"`
 	NodeInfoList []any             `json:"node_info_list"`
 	NodeInfo     any               `json:"node_info"`
 	Matrix       *MatrixMeta       `json:"matrix"`

@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -9,6 +11,9 @@ import (
 	"github.com/anaskhan96/soup"
 	//"github.com/jimsmart/grobotstxt"
 )
+
+var ErrExternalRedirect = errors.New("external redirection")
+var ErrTooManyRedir = errors.New("too many redirections")
 
 func ParseHomepage(resp *http.Response) (string, []HtmlMeta) {
 	doc := soup.HTMLParse(string(ReadHttpResponseContent(resp)))
@@ -95,6 +100,26 @@ func ScanRobots(target *url.URL) []RobotDirective {
 	return res
 }
 
+const (
+	HTTP_LOCAL_REDIR  = 1
+	HTTP_SCHEME_REDIR = 2
+	HTTP_EXTERN_REDIR = 3
+)
+
+func GetRedirectionType(loc string, target *url.URL) int {
+	parsed_loc, _ := url.Parse(loc) // TODO: parse it better (idk if it would parse correctly "login/page.php", it would think "login" is the host)
+
+	if parsed_loc.Host == "" || parsed_loc.Host == target.Host {
+		if parsed_loc.Scheme == "" || parsed_loc.Scheme == target.Scheme {
+			return HTTP_LOCAL_REDIR
+		} else {
+			return HTTP_SCHEME_REDIR
+		}
+	} else {
+		return HTTP_EXTERN_REDIR
+	}
+}
+
 func CheckHttpDumbRedirection(report *HttpReport, target url.URL) bool {
 	/**
 		* 3 cases of dumb redirection:
@@ -125,44 +150,68 @@ func CheckHttpDumbRedirection(report *HttpReport, target url.URL) bool {
 		return false
 	}
 
-	parsed_loc, _ := url.Parse(resp.Header.Get("Location")) // TODO: parse it better (idk if it would parse correctly "login/page.php", it would think "login" is the host)
-
-	if (parsed_loc.Scheme == "" || parsed_loc.Scheme == target.Scheme) && (parsed_loc.Host == "" || parsed_loc.Host == target.Host) {
-		return false
-	}
-
-	report.Tags = append(report.Tags, "dumb-redirect")
-	return true
+	return GetRedirectionType(resp.Header.Get("Location"), &target) != HTTP_LOCAL_REDIR
 }
 
 // return: continue_scan / follow redirect
 func CheckHttpRedirection(resp *http.Response, target *url.URL, report *HttpReport) (bool, bool) {
-	_loc, e := resp.Header["Location"]
+	loc, e := resp.Header["Location"]
 
-	continue_scan := true
-	follow_redirect := false
-
-	if !e || len(_loc) == 0 {
+	if !e || len(loc) == 0 {
 		report.Tags = append(report.Tags, "invalid-redirect")
-		return continue_scan, follow_redirect
+		return true, false
 	}
 
-	loc := _loc[0]
-	new_loc, _ := url.Parse(loc) // TODO: parse it better (idk if it would parse correctly "login/page.php", it would think "login" is the host)
+	redir_type := GetRedirectionType(loc[0], target)
 
-	if new_loc.Host == "" || new_loc.Host == target.Host {
-		if new_loc.Scheme == "" || new_loc.Scheme == target.Scheme {
-			report.Tags = append(report.Tags, "local-redirect")
-			follow_redirect = true
-			return true, true
-		} else {
-			report.Tags = append(report.Tags, new_loc.Scheme+"-redirect")
-		}
-	} else {
+	switch redir_type {
+	case HTTP_LOCAL_REDIR:
+		report.Tags = append(report.Tags, "local-redirect")
+		return true, true
+	case HTTP_SCHEME_REDIR:
+		u, _ := url.Parse(loc[0])
+		report.Tags = append(report.Tags, u.Scheme+"-redirect")
+	case HTTP_EXTERN_REDIR:
 		report.Tags = append(report.Tags, "external-redirect")
 	}
 
-	return CheckHttpDumbRedirection(report, *target), follow_redirect
+	return CheckHttpDumbRedirection(report, *target), false
+}
+
+func FollowLocalRedirections(resp *http.Response, target url.URL) (*http.Response, error) {
+	is_defered := true
+	if resp.Header.Get("Location") == "" {
+		return resp, nil
+	}
+	for i := 0; i < MaxRedir; i++ {
+		redir_url, _ := url.Parse(resp.Header.Get("Location")) // TODO: parse it better (idk if it would parse correctly "login/page.php", it would think "login" is the host)
+		if (redir_url.Scheme != "" && redir_url.Scheme != target.Scheme) || (redir_url.Host != target.Host && redir_url.Host != "") {
+			return nil, ErrExternalRedirect
+		}
+
+		// get redirection url
+		target.Path = redir_url.Path
+		req := NewHttpRequest(target.String())
+
+		if !is_defered {
+			resp.Body.Close()
+		}
+		// query it
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		is_defered = false
+
+		if resp.Header.Get("Location") == "" {
+			return resp, nil
+		}
+	}
+
+	if !is_defered {
+		resp.Body.Close()
+	}
+	return nil, ErrTooManyRedir
 }
 
 func ScanHTTP(target *url.URL) (HttpReport, error) {
@@ -177,7 +226,8 @@ func ScanHTTP(target *url.URL) (HttpReport, error) {
 	}
 	defer resp.Body.Close()
 
-	if report.StatusCode >= 300 && report.StatusCode <= 399 {
+	report.Path = "/"
+	if resp.StatusCode >= 300 && resp.StatusCode <= 399 {
 		continue_scan, follow_redirect := CheckHttpRedirection(resp, target, &report)
 
 		_ = follow_redirect
@@ -188,7 +238,16 @@ func ScanHTTP(target *url.URL) (HttpReport, error) {
 			report.Title, report.HtmlMeta = ParseHomepage(resp)
 			return report, nil
 		} else if follow_redirect {
-			// TODO:
+			/* if there is an error */
+			report.StatusCode = resp.StatusCode
+			report.Headers = GetHttpResponseHeaders(resp)
+
+			resp, err = FollowLocalRedirections(resp, *target)
+			if err != nil {
+				fmt.Println("redirection error:", err.Error())
+				return report, nil
+			}
+			defer resp.Body.Close()
 		}
 	}
 
@@ -198,7 +257,7 @@ func ScanHTTP(target *url.URL) (HttpReport, error) {
 
 	report.Title, report.HtmlMeta = ParseHomepage(resp)
 	robot_directives := ScanRobots(target)
-	report.RobotTxt = robot_directives
+	report.RobotsTxt = robot_directives
 
 	//fmt.Print(report.Title)
 

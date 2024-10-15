@@ -57,6 +57,17 @@ func execute() {
 func main() {
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	http.DefaultClient.Timeout = ReqTimeout
+	http.DefaultClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
 
-	//TestScanDomain()
+	res, err := ScanDomain(os.Args[1])
+
+	if err != nil {
+		fmt.Println("err:", err.Error())
+		return
+	}
+
+	b, _ := json.MarshalIndent(res, "", "    ")
+	log.Println(string(b))
 }
