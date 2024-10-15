@@ -32,13 +32,14 @@ func test_scanner() {
 			target.Scheme = "https"
 		}
 		wg.Add(1)
-		go func(wg *sync.WaitGroup) {
+		go func(wg *sync.WaitGroup, i int, target *url.URL) {
 			defer wg.Done()
 			httpreports[i], err = ScanHTTP(target)
-		}(&wg)
+			fmt.Println("Done scanning", i, target)
+		}(&wg, i, target)
 	}
 	wg.Wait()
-	fmt.Println("Done")
+	fmt.Println("Done all")
 	jsonreports, _ := json.Marshal(httpreports)
 	os.WriteFile("httpreports.json", jsonreports, os.ModePerm)
 }

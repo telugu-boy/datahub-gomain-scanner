@@ -113,7 +113,7 @@ func ScanHTTP(target *url.URL) (HttpReport, error) {
 	req := fasthttp.AcquireRequest()
 	resp := fasthttp.AcquireResponse()
 
-	fmt.Println("Scanning", target)
+	//fmt.Println("Scanning", target)
 	req.SetRequestURI(target.String())
 	for k, v := range RequestHeaders {
 		req.Header.Set(k, v)
