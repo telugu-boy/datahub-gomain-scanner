@@ -2,14 +2,23 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/anaskhan96/soup"
+
 	//"github.com/jimsmart/grobotstxt"
 	"github.com/valyala/fasthttp"
 )
+
+func AcquireAndSetupReq(uri string) *fasthttp.Request {
+	req := fasthttp.AcquireRequest()
+	req.SetRequestURI(uri)
+	for k, v := range RequestHeaders {
+		req.Header.Set(k, v)
+	}
+	return req
+}
 
 func ParseHomepage(resp *fasthttp.Response) (string, []HtmlMeta) {
 	doc := soup.HTMLParse(string(resp.Body()))
@@ -106,6 +115,87 @@ func ScanRobots(target url.URL) ([]RobotDirective, error) {
 	return res, nil
 }
 
+func CheckHttpDumbRedirection(report *HttpReport, target url.URL) bool {
+	/**
+		* 3 cases of dumb redirection:
+		* 1. redirecting always to the same URL
+		* 2. redirecting always to another domain/schema, keeping path
+		*    (www.example.com -> example.com or http://... -> https://...)
+		* 3. redirecting always to https://some_site.tld/login.php?path=/amazing/path/to/that/resource.txt
+		*
+		* so i think the best way to avoid most false-negative is to check
+		* if it redirects to an external link when reaching random pages.
+		* (if it performs local redirection, then it should have some sort of logic behind it)
+	**/
+
+	target.Path = "/are_you_dumb_redirect"
+
+	req := AcquireAndSetupReq(target.String())
+	resp := fasthttp.AcquireResponse()
+
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
+
+	if err := fasthttp.DoTimeout(req, resp, ReqTimeout); err != nil {
+		return false
+	}
+
+	var StatusCode = resp.StatusCode()
+
+	if StatusCode < 300 || StatusCode > 399 {
+		return false
+	}
+
+	var loc = ""
+	resp.Header.VisitAll(func(key []byte, val []byte) {
+		if strings.ToLower(string(key)) == "location" {
+			loc = string(val)
+		}
+	})
+
+	if loc == "" {
+		return false
+	}
+
+	parsed_loc, _ := url.Parse(loc) // TODO: parse it better (idk if it would parse correctly "login/page.php", it would think "login" is the host)
+
+	if (parsed_loc.Scheme == "" || parsed_loc.Scheme == target.Scheme) && (parsed_loc.Host == "" || parsed_loc.Host == target.Host) {
+		return false
+	}
+
+	report.Tags = append(report.Tags, "dumb-redirect")
+	return true
+}
+
+// return: continue_scan / follow redirect
+func CheckHttpRedirection(resp *fasthttp.Response, target *url.URL, report *HttpReport) (bool, bool) {
+	loc, e := report.Headers["Location"]
+
+	continue_scan := true
+	follow_redirect := false
+
+	if !e {
+		report.Tags = append(report.Tags, "invalid-redirect")
+		return continue_scan, follow_redirect
+	}
+
+	new_loc, _ := url.Parse(loc) // TODO: parse it better (idk if it would parse correctly "login/page.php", it would think "login" is the host)
+
+	if new_loc.Host == "" || new_loc.Host == target.Host {
+		if new_loc.Scheme == "" || new_loc.Scheme == target.Scheme {
+			report.Tags = append(report.Tags, "local-redirect")
+			follow_redirect = true
+			return true, true
+		} else {
+			report.Tags = append(report.Tags, new_loc.Scheme+"-redirect")
+		}
+	} else {
+		report.Tags = append(report.Tags, "external-redirect")
+	}
+
+	return continue_scan, follow_redirect
+}
+
 func ScanHTTP(target *url.URL) (HttpReport, error) {
 	report := HttpReport{}
 	report.Headers = make(map[string]string)
@@ -126,24 +216,33 @@ func ScanHTTP(target *url.URL) (HttpReport, error) {
 		return report, err
 	}
 
-	if resp.StatusCode() != 200 {
-		return report, fmt.Errorf("Non-200 status code: %d", resp.StatusCode())
-	}
-
 	report.Path = target.Path
 	report.StatusCode = resp.StatusCode()
 	resp.Header.VisitAll(func(key, value []byte) {
 		report.Headers[string(key)] = string(value)
 	})
 
-	report.Title, report.HtmlMeta = ParseHomepage(resp)
-	robot_directives, err := ScanRobots(*target)
-	if err != nil {
-		return report, err
-	}
-	report.RobotTxt = robot_directives
+	if report.StatusCode >= 300 && report.StatusCode <= 399 {
+		continue_scan, follow_redirect := CheckHttpRedirection(resp, target, &report)
 
-	fmt.Print(report.Title)
+		_ = follow_redirect
+
+		if !continue_scan {
+			report.Title, report.HtmlMeta = ParseHomepage(resp)
+			return report, nil
+		} else if follow_redirect {
+			// TODO:
+		}
+	}
+
+	report.Title, report.HtmlMeta = ParseHomepage(resp)
+	//robot_directives, err := ScanRobots(*target)
+	//if err != nil {
+	//	return report, err
+	//}
+	//report.RobotTxt = robot_directives
+
+	//fmt.Print(report.Title)
 
 	return report, nil
 }
