@@ -81,14 +81,14 @@ func ScanRobots(target *url.URL) []RobotDirective {
 			continue
 		}
 		if parts[0] == "User-agent" && parts[1] != "*" {
-			curr_uagent = parts[1]
+			curr_uagent = strings.TrimSpace(parts[1])
 			continue
 		}
 
 		res = append(res, RobotDirective{
 			UserAgent: curr_uagent,
-			Directive: parts[0],
-			Data:      parts[1],
+			Directive: strings.TrimSpace(parts[0]),
+			Data:      strings.TrimSpace(parts[1]),
 		})
 
 		cnt++
