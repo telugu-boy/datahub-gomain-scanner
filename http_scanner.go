@@ -106,11 +106,9 @@ const (
 	HTTP_EXTERN_REDIR = 3
 )
 
-func GetRedirectionType(loc string, target *url.URL) int {
-	parsed_loc, _ := url.Parse(loc) // TODO: parse it better (idk if it would parse correctly "login/page.php", it would think "login" is the host)
-
-	if parsed_loc.Host == "" || parsed_loc.Host == target.Host {
-		if parsed_loc.Scheme == "" || parsed_loc.Scheme == target.Scheme {
+func GetRedirectionType(loc *url.URL, target *url.URL) int {
+	if loc.Host == target.Host {
+		if loc.Scheme == target.Scheme {
 			return HTTP_LOCAL_REDIR
 		} else {
 			return HTTP_SCHEME_REDIR
@@ -146,31 +144,31 @@ func CheckHttpDumbRedirection(report *HttpReport, target url.URL) bool {
 		return false
 	}
 
-	if resp.Header.Get("Location") == "" {
+	loc, e := resp.Location()
+	if e != nil {
 		return false
 	}
 
-	return GetRedirectionType(resp.Header.Get("Location"), &target) != HTTP_LOCAL_REDIR
+	return GetRedirectionType(loc, &target) != HTTP_LOCAL_REDIR
 }
 
 // return: continue_scan / follow redirect
 func CheckHttpRedirection(resp *http.Response, target *url.URL, report *HttpReport) (bool, bool) {
-	loc, e := resp.Header["Location"]
+	loc, e := resp.Location()
 
-	if !e || len(loc) == 0 {
+	if e != nil {
 		report.Tags = append(report.Tags, "invalid-redirect")
 		return true, false
 	}
 
-	redir_type := GetRedirectionType(loc[0], target)
+	redir_type := GetRedirectionType(loc, target)
 
 	switch redir_type {
 	case HTTP_LOCAL_REDIR:
 		report.Tags = append(report.Tags, "local-redirect")
 		return true, true
 	case HTTP_SCHEME_REDIR:
-		u, _ := url.Parse(loc[0])
-		report.Tags = append(report.Tags, u.Scheme+"-redirect")
+		report.Tags = append(report.Tags, loc.Scheme+"-redirect")
 	case HTTP_EXTERN_REDIR:
 		report.Tags = append(report.Tags, "external-redirect")
 	}
@@ -180,19 +178,19 @@ func CheckHttpRedirection(resp *http.Response, target *url.URL, report *HttpRepo
 
 func FollowLocalRedirections(resp *http.Response, target url.URL) (*http.Response, error) {
 	is_defered := true
-	if resp.Header.Get("Location") == "" {
+	if _, e := resp.Location(); e != nil {
 		return resp, nil
 	}
 	for i := 0; i < MaxRedir; i++ {
-		redir_url, _ := url.Parse(resp.Header.Get("Location")) // TODO: parse it better (idk if it would parse correctly "login/page.php", it would think "login" is the host)
-		if (redir_url.Scheme != "" && redir_url.Scheme != target.Scheme) || (redir_url.Host != target.Host && redir_url.Host != "") {
+		loc, _ := resp.Location()
+		if loc.Scheme != target.Scheme || loc.Host != target.Host {
+			if !is_defered {
+				resp.Body.Close()
+			}
 			return nil, ErrExternalRedirect
 		}
 
-		// get redirection url
-		target.Path = redir_url.Path
-		req := NewHttpRequest(target.String())
-
+		req := NewHttpRequest(loc.String())
 		if !is_defered {
 			resp.Body.Close()
 		}
@@ -202,7 +200,6 @@ func FollowLocalRedirections(resp *http.Response, target url.URL) (*http.Respons
 			return nil, err
 		}
 		is_defered = false
-
 		if resp.Header.Get("Location") == "" {
 			return resp, nil
 		}
@@ -251,7 +248,6 @@ func ScanHTTP(target *url.URL) (HttpReport, error) {
 		}
 	}
 
-	report.Path = target.Path
 	report.StatusCode = resp.StatusCode
 	report.Headers = GetHttpResponseHeaders(resp)
 
