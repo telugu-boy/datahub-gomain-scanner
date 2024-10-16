@@ -31,7 +31,7 @@ type HttpReport struct {
 }
 
 type MatrixMeta struct {
-	WellknownClient string   `json:"wellknown_client"`
+	WellknownClient any      `json:"wellknown_client"`
 	ClientVersions  []string `json:"client_versions"`
 	ClientFeatures  []string `json:"client_features"`
 }

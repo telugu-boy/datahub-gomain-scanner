@@ -255,6 +255,8 @@ func ScanHTTP(target *url.URL) (HttpReport, error) {
 	robot_directives := ScanRobots(target)
 	report.RobotsTxt = robot_directives
 
+	report.Matrix = ScanMatrix(*target)
+
 	//fmt.Print(report.Title)
 
 	return report, nil

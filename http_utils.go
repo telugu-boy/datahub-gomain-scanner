@@ -24,6 +24,10 @@ func ReadHttpResponseContent(resp *http.Response) []byte {
 
 	n, _ := io.ReadFull(resp.Body, buff[:])
 
+	if n < 0 {
+		n = 0
+	}
+
 	return buff[:n]
 }
 
