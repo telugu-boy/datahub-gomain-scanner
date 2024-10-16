@@ -6,19 +6,20 @@ import (
 	"github.com/miekg/dns"
 )
 
+var dnsclient = new(dns.Client)
+
 func EnumerateDnsRecords(domain string) map[string][]string {
 	ret := map[string][]string{
 		"A": {}, "AAAA": {},
 		"MX": {}}
-	c := new(dns.Client)
 
 	// https://en.wikipedia.org/wiki/List_of_DNS_record_types
 	// A, AAAA, MX
+	dnsmsg := new(dns.Msg)
 	for _, qtyp := range []uint16{1, 28, 15} {
-		m := new(dns.Msg)
-		m.SetQuestion(dns.Fqdn(domain), qtyp)
+		dnsmsg.SetQuestion(dns.Fqdn(domain), qtyp)
 
-		in, _, _ := c.Exchange(m, DNSServer)
+		in, _, _ := dnsclient.Exchange(dnsmsg, DNSServer)
 
 		if in == nil || len(in.Answer) == 0 {
 			continue
