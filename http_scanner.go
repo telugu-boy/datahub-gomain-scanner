@@ -177,10 +177,10 @@ func CheckHttpRedirection(resp *http.Response, target *url.URL, report *HttpRepo
 	return CheckHttpDumbRedirection(report, *target), false
 }
 
-func FollowLocalRedirections(resp *http.Response, target url.URL) (*http.Response, error) {
+func FollowLocalRedirections(resp *http.Response, target url.URL) (*http.Response, string, error) {
 	is_defered := true
 	if _, e := resp.Location(); e != nil {
-		return resp, nil
+		return resp, target.Path, nil
 	}
 	for i := 0; i < MaxRedir; i++ {
 		loc, _ := resp.Location()
@@ -188,7 +188,7 @@ func FollowLocalRedirections(resp *http.Response, target url.URL) (*http.Respons
 			if !is_defered {
 				resp.Body.Close()
 			}
-			return nil, ErrExternalRedirect
+			return nil, "", ErrExternalRedirect
 		}
 
 		req := NewHttpRequest(loc.String())
@@ -198,18 +198,18 @@ func FollowLocalRedirections(resp *http.Response, target url.URL) (*http.Respons
 		// query it
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		is_defered = false
 		if resp.Header.Get("Location") == "" {
-			return resp, nil
+			return resp, loc.Path, nil
 		}
 	}
 
 	if !is_defered {
 		resp.Body.Close()
 	}
-	return nil, ErrTooManyRedir
+	return nil, "", ErrTooManyRedir
 }
 
 func ScanHTTP(target *url.URL) (HttpReport, error) {
@@ -240,12 +240,14 @@ func ScanHTTP(target *url.URL) (HttpReport, error) {
 			report.StatusCode = resp.StatusCode
 			report.Headers = GetHttpResponseHeaders(resp)
 
-			resp, err = FollowLocalRedirections(resp, *target)
+			var actual_path string
+			resp, actual_path, err = FollowLocalRedirections(resp, *target)
 			if err != nil {
 				fmt.Println("redirection error:", err.Error())
 				return report, nil
 			}
 			defer resp.Body.Close()
+			report.Path = actual_path
 		}
 	}
 
