@@ -258,6 +258,11 @@ func ScanHTTP(target *url.URL) (HttpReport, error) {
 
 	report.Matrix = ScanMatrix(*target)
 
+	if resp.TLS != nil && len(resp.TLS.PeerCertificates) != 0 {
+		cd := SanitizeCertificate(*resp.TLS.PeerCertificates[0])
+		report.Certificate = &cd
+	}
+
 	//fmt.Print(report.Title)
 
 	return report, nil

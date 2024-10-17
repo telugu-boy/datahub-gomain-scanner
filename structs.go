@@ -52,10 +52,7 @@ type CertificateEntity struct {
 	Attrs   map[string][]string `json:"attrs"`
 }
 type CertificateDump struct {
-	Version struct {
-		VersionName  string `json:"name"`
-		VersionValue int    `json:"number"`
-	} `json:"version"`
+	Version     int               `json:"version"`
 	Issuer      CertificateEntity `json:"issuer"`
 	Subject     CertificateEntity `json:"subject"`
 	ValidAfter  string            `json:"valid_after"`  // python's isoformat()[:19]
