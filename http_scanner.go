@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/anaskhan96/soup"
@@ -27,12 +28,12 @@ func ParseHomepage(resp *http.Response) (string, []HtmlMeta) {
 	for _, meta := range metas {
 		attrs := meta.Attrs()
 		if attrs["content"] != "" {
-			if attrs["name"] != "" {
+			if attrs["name"] != "" && !slices.Contains(HtmlMetaBlackList, attrs["name"]) {
 				htmlmetas = append(htmlmetas, HtmlMeta{
 					Property: attrs["name"],
 					Content:  attrs["content"],
 				})
-			} else if attrs["property"] != "" {
+			} else if attrs["property"] != "" && !slices.Contains(HtmlMetaBlackList, attrs["property"]) {
 				htmlmetas = append(htmlmetas, HtmlMeta{
 					Property: attrs["property"],
 					Content:  attrs["content"],
