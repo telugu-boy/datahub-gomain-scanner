@@ -25,7 +25,7 @@ type HttpReport struct {
 	Title        string            `json:"title"`
 	HtmlMeta     []HtmlMeta        `json:"html_meta"`
 	RobotsTxt    []RobotDirective  `json:"robots_txt"`
-	NodeInfoList []any             `json:"node_info_list"`
+	NodeInfoList any               `json:"node_info_list"`
 	NodeInfo     any               `json:"node_info"`
 	Matrix       *MatrixMeta       `json:"matrix"`
 }

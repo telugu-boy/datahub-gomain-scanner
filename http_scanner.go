@@ -107,7 +107,7 @@ const (
 	HTTP_EXTERN_REDIR = 3
 )
 
-func GetRedirectionType(loc *url.URL, target *url.URL) int {
+func GetRedirectionType(loc url.URL, target url.URL) int {
 	if loc.Host == target.Host {
 		if loc.Scheme == target.Scheme {
 			return HTTP_LOCAL_REDIR
@@ -150,7 +150,7 @@ func CheckHttpDumbRedirection(report *HttpReport, target url.URL) bool {
 		return false
 	}
 
-	return GetRedirectionType(loc, &target) != HTTP_LOCAL_REDIR
+	return GetRedirectionType(*loc, target) != HTTP_LOCAL_REDIR
 }
 
 // return: continue_scan / follow redirect
@@ -162,7 +162,7 @@ func CheckHttpRedirection(resp *http.Response, target *url.URL, report *HttpRepo
 		return true, false
 	}
 
-	redir_type := GetRedirectionType(loc, target)
+	redir_type := GetRedirectionType(*loc, *target)
 
 	switch redir_type {
 	case HTTP_LOCAL_REDIR:
@@ -224,6 +224,10 @@ func ScanHTTP(target *url.URL) (HttpReport, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.TLS != nil && len(resp.TLS.PeerCertificates) != 0 {
+		cd := SanitizeCertificate(*resp.TLS.PeerCertificates[0])
+		report.Certificate = &cd
+	}
 	report.Path = "/"
 	if resp.StatusCode >= 300 && resp.StatusCode <= 399 {
 		continue_scan, follow_redirect := CheckHttpRedirection(resp, target, &report)
@@ -260,10 +264,7 @@ func ScanHTTP(target *url.URL) (HttpReport, error) {
 
 	report.Matrix = ScanMatrix(*target)
 
-	if resp.TLS != nil && len(resp.TLS.PeerCertificates) != 0 {
-		cd := SanitizeCertificate(*resp.TLS.PeerCertificates[0])
-		report.Certificate = &cd
-	}
+	report.NodeInfoList, report.NodeInfo = ScanNodeInfo(*target)
 
 	//fmt.Print(report.Title)
 
