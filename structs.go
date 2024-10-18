@@ -1,6 +1,7 @@
 package main
 
 const SCAN_REPORT_VERSION = 1
+const SCAN_REPORT_TIME_FORMAT = "2006-01-02T15:04:05"
 
 // NOTE: we will need to change datahub's server code
 //		because it depends a lot on the presences of keys (but in golang we will have to set them to nil)

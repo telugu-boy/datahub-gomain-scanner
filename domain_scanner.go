@@ -26,7 +26,7 @@ func ScanDomain(domain string) (ScanReport, error) {
 		Domain:  domain,
 		Meta: map[string]any{
 			"nameservers": []string{DNSServer},
-			"started_at":  time.Now().UTC().Format(time.RFC3339),
+			"started_at":  time.Now().UTC().Format(SCAN_REPORT_TIME_FORMAT),
 		},
 		Services:    map[string]any{},
 		HttpReports: map[string]HttpReport{},
@@ -34,7 +34,7 @@ func ScanDomain(domain string) (ScanReport, error) {
 	}
 
 	defer func() {
-		scanreport.Meta["ended_at"] = time.Now().UTC().Format(time.RFC3339)
+		scanreport.Meta["ended_at"] = time.Now().UTC().Format(SCAN_REPORT_TIME_FORMAT)
 	}()
 
 	domain, err := idna.ToASCII(strings.ToLower(strings.Trim(strings.TrimSpace(domain), ".")))

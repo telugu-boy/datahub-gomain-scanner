@@ -4,7 +4,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
-	"time"
 )
 
 func CertName2Entity(name pkix.Name) CertificateEntity {
@@ -30,8 +29,8 @@ func SanitizeCertificate(cert x509.Certificate) CertificateDump {
 		Version:     cert.Version,
 		DNSNames:    cert.DNSNames,
 		Raw:         base64.StdEncoding.EncodeToString(cert.Raw),
-		ValidAfter:  cert.NotBefore.Format(time.RFC3339),
-		ValidBefore: cert.NotAfter.Format(time.RFC3339),
+		ValidAfter:  cert.NotBefore.Format(SCAN_REPORT_TIME_FORMAT),
+		ValidBefore: cert.NotAfter.Format(SCAN_REPORT_TIME_FORMAT),
 		// TODO: i don't know how to get the pubkey hash
 		PublicKey: cert.PublicKeyAlgorithm.String() + " ",
 	}
